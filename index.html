@@ -26,7 +26,7 @@
             outline: none;
             color: #E5E5E5;
             width: 100%;
-            font-size: 3rem; /* Made slightly bigger for the focus screen */
+            font-size: 3rem; /* Big font for focus mode */
             line-height: 1.2;
             resize: none;
         }
@@ -42,7 +42,6 @@
     <div id="main-container" class="w-full h-full flex p-12 gap-12 transition-all duration-500">
         
         <!-- SECTION A: FOCUS (Active Task) -->
-        <!-- Logic: If mode=log, this gets hidden via JS -->
         <div id="focus-view" class="flex-1 flex flex-col justify-center relative transition-all duration-500">
             
             <div class="absolute top-12 left-0 text-gray-600 text-sm tracking-widest uppercase">
@@ -69,7 +68,6 @@
         </div>
 
         <!-- SECTION B: LOG (History) -->
-        <!-- Logic: If mode=focus, this gets hidden via JS -->
         <div id="log-view" class="flex flex-col justify-end pb-12 transition-all duration-500 w-1/3 border-l border-gray-800 pl-12">
             <div class="text-gray-600 text-sm tracking-widest uppercase mb-6">
                 Mission Log
@@ -87,7 +85,9 @@
         // --- CONFIG ---
         const SUPABASE_URL = 'https://oyennkllpeqmkluwyksz.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95ZW5ua2xscGVxbWtsdXd5a3N6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNzA3MTMsImV4cCI6MjA3OTk0NjcxM30.6Az5zgqBc6QbRd8juRWEpjvPtzIztLAzbs_siWIUTTY';
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        // FIX: Renamed variable to 'client' to avoid conflict with the library name 'supabase'
+        const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const taskInput = document.getElementById('task-input');
         const statusDot = document.getElementById('status-dot');
@@ -106,16 +106,16 @@
             if (mode === 'focus') {
                 // HIDE LOG, CENTER FOCUS
                 logView.style.display = 'none';
-                focusView.classList.remove('flex-1'); // Remove flex-1 to verify full width
-                focusView.classList.add('w-full', 'max-w-6xl', 'mx-auto'); // Center it nicely
-                container.classList.remove('p-12'); // Adjust padding if needed
+                focusView.classList.remove('flex-1'); 
+                focusView.classList.add('w-full', 'max-w-6xl', 'mx-auto'); 
+                container.classList.remove('p-12'); 
                 container.classList.add('px-24');
             } 
             else if (mode === 'log') {
                 // HIDE FOCUS, EXPAND LOG
                 focusView.style.display = 'none';
-                logView.classList.remove('w-1/3', 'border-l', 'pl-12'); // Remove side constraints
-                logView.classList.add('w-full', 'px-8'); // Full width for vertical monitor
+                logView.classList.remove('w-1/3', 'border-l', 'pl-12'); 
+                logView.classList.add('w-full', 'px-8'); 
                 
                 // Adjust typography for vertical view
                 historyList.classList.remove('max-h-[85vh]');
@@ -125,7 +125,7 @@
 
         // --- DATA LOGIC ---
         async function loadData() {
-            const { data: activeTasks } = await supabase
+            const { data: activeTasks } = await client
                 .from('tasks')
                 .select('*')
                 .eq('status', 'active')
@@ -145,7 +145,7 @@
         }
 
         async function fetchHistory() {
-            const { data: history } = await supabase
+            const { data: history } = await client
                 .from('tasks')
                 .select('*')
                 .eq('status', 'done')
@@ -176,9 +176,9 @@
             if (!content) return;
             statusDot.classList.remove('hidden');
             if (currentTaskId) {
-                await supabase.from('tasks').update({ content }).eq('id', currentTaskId);
+                await client.from('tasks').update({ content }).eq('id', currentTaskId);
             } else {
-                const { data } = await supabase.from('tasks').insert([{ content, status: 'active' }]).select();
+                const { data } = await client.from('tasks').insert([{ content, status: 'active' }]).select();
                 if (data) currentTaskId = data[0].id;
             }
         }
@@ -186,7 +186,7 @@
         async function completeTask() {
             if (!currentTaskId) return;
             const now = new Date().toISOString();
-            await supabase.from('tasks').update({ status: 'done', completed_at: now }).eq('id', currentTaskId);
+            await client.from('tasks').update({ status: 'done', completed_at: now }).eq('id', currentTaskId);
             taskInput.value = "";
             currentTaskId = null;
             statusDot.classList.add('hidden');
@@ -194,8 +194,8 @@
         }
 
         // --- INIT ---
-        applyMode(); // Set layout based on URL
-        loadData(); // Load data from Supabase
+        applyMode(); 
+        loadData(); 
         
         // Listeners
         taskInput.addEventListener('blur', saveActiveTask);
