@@ -86,7 +86,6 @@
         const SUPABASE_URL = 'https://oyennkllpeqmkluwyksz.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95ZW5ua2xscGVxbWtsdXd5a3N6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNzA3MTMsImV4cCI6MjA3OTk0NjcxM30.6Az5zgqBc6QbRd8juRWEpjvPtzIztLAzbs_siWIUTTY';
         
-        // FIX: Renamed variable to 'client' to avoid conflict with the library name 'supabase'
         const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const taskInput = document.getElementById('task-input');
@@ -104,7 +103,6 @@
             const mode = urlParams.get('mode'); // 'focus' or 'log'
 
             if (mode === 'focus') {
-                // HIDE LOG, CENTER FOCUS
                 logView.style.display = 'none';
                 focusView.classList.remove('flex-1'); 
                 focusView.classList.add('w-full', 'max-w-6xl', 'mx-auto'); 
@@ -112,12 +110,9 @@
                 container.classList.add('px-24');
             } 
             else if (mode === 'log') {
-                // HIDE FOCUS, EXPAND LOG
                 focusView.style.display = 'none';
                 logView.classList.remove('w-1/3', 'border-l', 'pl-12'); 
                 logView.classList.add('w-full', 'px-8'); 
-                
-                // Adjust typography for vertical view
                 historyList.classList.remove('max-h-[85vh]');
                 historyList.classList.add('max-h-screen');
             }
@@ -131,15 +126,26 @@
                 .eq('status', 'active')
                 .limit(1);
 
+            // FIX: Check if the user is currently typing
+            const isTyping = document.activeElement === taskInput;
+
             if (activeTasks && activeTasks.length > 0) {
                 const task = activeTasks[0];
-                taskInput.value = task.content;
                 currentTaskId = task.id;
                 statusDot.classList.remove('hidden');
+
+                // FIX: Only overwrite the text if the user is NOT typing
+                if (!isTyping) {
+                    taskInput.value = task.content;
+                }
             } else {
-                taskInput.value = "";
                 currentTaskId = null;
                 statusDot.classList.add('hidden');
+
+                // FIX: Only clear the text if the user is NOT typing
+                if (!isTyping) {
+                    taskInput.value = "";
+                }
             }
             fetchHistory();
         }
