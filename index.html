@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sam's HUD</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Custom Styles for Vibe -->
+    <style>
+        body {
+            background-color: #111111; /* Charcoal */
+            color: #E5E5E5; /* Off-White */
+            font-family: 'Courier New', Courier, monospace; /* Terminal Font */
+            overflow: hidden; /* No scrolling on wallpaper */
+        }
+        
+        /* The Blinking Dot Animation */
+        .blink {
+            animation: blinker 1.5s linear infinite;
+        }
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
+
+        /* Input styling to look like plain text */
+        #task-input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #E5E5E5;
+            width: 100%;
+            font-size: 2.5rem;
+            line-height: 1.2;
+            resize: none;
+        }
+        #task-input::placeholder {
+            color: #333;
+        }
+
+        /* Scrollbar hiding for the history list */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex items-center justify-center">
+
+    <div class="w-full max-w-7xl h-full flex flex-row p-12 gap-12">
+        
+        <!-- LEFT SIDE: The Main Focus -->
+        <div class="flex-1 flex flex-col justify-center relative">
+            
+            <!-- North Star / Header -->
+            <div class="absolute top-0 left-0 text-gray-600 text-sm tracking-widest uppercase">
+                Current Objective
+            </div>
+
+            <!-- The Active Task Wrapper -->
+            <div class="flex items-start gap-4">
+                <!-- The Blinking Green Dot -->
+                <div id="status-dot" class="w-4 h-4 rounded-full bg-green-500 shadow-[0_0_10px_#22c55e] blink mt-4 hidden"></div>
+                
+                <!-- The Input Field -->
+                <textarea 
+                    id="task-input" 
+                    rows="2" 
+                    placeholder="Initialize mission..." 
+                    autofocus
+                    spellcheck="false"
+                ></textarea>
+            </div>
+
+            <!-- Instructions (Subtle) -->
+            <div class="mt-8 text-gray-700 text-xs">
+                [ENTER] to Save & Update &nbsp;&nbsp; [CMD + ENTER] to Complete
+            </div>
+        </div>
+
+        <!-- RIGHT SIDE: The History Log -->
+        <div class="w-1/3 border-l border-gray-800 pl-12 flex flex-col justify-end pb-12">
+            <div class="text-gray-600 text-sm tracking-widest uppercase mb-6">
+                Mission Log
+            </div>
+            
+            <!-- Timeline Container -->
+            <div id="history-list" class="flex flex-col gap-4 overflow-y-auto max-h-[80vh] no-scrollbar mask-image-gradient">
+                <!-- History Items will be injected here via JS -->
+                <!-- Example of look: 
+                <div class="flex gap-4 text-gray-500">
+                    <span class="text-xs pt-1 opacity-50">[14:20]</span>
+                    <span class="text-sm">Deployed landing page</span>
+                </div> 
+                -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- LOGIC -->
+    <script>
+        // --- 1. CONFIGURATION ---
+        // PASTE YOUR KEYS HERE
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_KEY = 'YOUR_SUPABASE_KEY';
+
+        // Initialize Client
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // UI Elements
+        const taskInput = document.getElementById('task-input');
+        const statusDot = document.getElementById('status-dot');
+        const historyList = document.getElementById('history-list');
+
+        let currentTaskId = null;
+
+        // --- 2. FUNCTIONS ---
+
+        // Load Data on Startup
+        async function loadData() {
+            // Get Active Task
+            const { data: activeTasks, error } = await supabase
+                .from('tasks')
+                .select('*')
+                .eq('status', 'active')
+                .limit(1);
+
+            if (activeTasks && activeTasks.length > 0) {
+                const task = activeTasks[0];
+                taskInput.value = task.content;
+                currentTaskId = task.id;
+                statusDot.classList.remove('hidden');
+            } else {
+                taskInput.value = "";
+                currentTaskId = null;
+                statusDot.classList.add('hidden');
+            }
+
+            // Get History
+            fetchHistory();
+        }
+
+        // Fetch History
+        async function fetchHistory() {
+            const { data: history, error } = await supabase
+                .from('tasks')
+                .select('*')
+                .eq('status', 'done')
+                .order('completed_at', { ascending: false })
+                .limit(20);
+
+            renderHistory(history || []);
+        }
+
+        // Render History HTML
+        function renderHistory(tasks) {
+            historyList.innerHTML = '';
+            tasks.forEach(task => {
+                const date = new Date(task.completed_at);
+                const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                const html = `
+                <div class="flex gap-4 text-gray-500 hover:text-gray-400 transition-colors cursor-default">
+                    <span class="text-xs pt-1 opacity-40 font-mono">[${timeStr}]</span>
+                    <span class="text-sm line-through opacity-60">${task.content}</span>
+                </div>
+                `;
+                historyList.innerHTML += html;
+            });
+        }
+
+        // Create or Update Active Task
+        async function saveActiveTask() {
+            const content = taskInput.value.trim();
+            if (!content) return;
+
+            statusDot.classList.remove('hidden');
+
+            if (currentTaskId) {
+                // Update existing
+                await supabase.from('tasks').update({ content }).eq('id', currentTaskId);
+            } else {
+                // Create new
+                const { data } = await supabase
+                    .from('tasks')
+                    .insert([{ content, status: 'active' }])
+                    .select();
+                
+                if (data) currentTaskId = data[0].id;
+            }
+        }
+
+        // Mark Task as Done
+        async function completeTask() {
+            if (!currentTaskId) return;
+
+            const now = new Date().toISOString();
+            
+            // Update DB
+            await supabase
+                .from('tasks')
+                .update({ status: 'done', completed_at: now })
+                .eq('id', currentTaskId);
+
+            // UI Updates
+            taskInput.value = "";
+            currentTaskId = null;
+            statusDot.classList.add('hidden');
+            fetchHistory();
+        }
+
+        // --- 3. EVENT LISTENERS ---
+
+        // Auto-save when user stops typing (Debounce could be added, but simple blur is fine for now)
+        taskInput.addEventListener('blur', saveActiveTask);
+
+        // Key Listeners
+        taskInput.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                if (e.metaKey || e.ctrlKey) {
+                    // CMD + ENTER = Complete Task
+                    e.preventDefault();
+                    await saveActiveTask(); // Ensure latest text is saved
+                    await completeTask();
+                } else {
+                    // ENTER = Just Save (prevent new line default behavior if desired, or let it flow)
+                    e.preventDefault(); 
+                    await saveActiveTask();
+                    // Optional: Visual feedback that it saved? 
+                    // For now, let's just keep focus.
+                }
+            }
+        });
+
+        // --- 4. INIT ---
+        loadData();
+
+        // Optional: Poll for updates every 10 seconds (so it syncs if you update on phone)
+        setInterval(loadData, 10000);
+
+    </script>
+</body>
+</html>
